@@ -38,29 +38,6 @@
 
 ---
 
-## 2. Tạo thư mục dự án
-
-Tạo cấu trúc ban đầu:
-
-```text
-AgriScan/
-└── agriscan-processing/
-```
-
-Mở thư mục `agriscan-processing` bằng VS Code: **File → Open Folder**.
-
-Có thể tạo nhanh bằng PowerShell:
-
-```powershell
-mkdir AgriScan
-cd AgriScan
-mkdir agriscan-processing
-cd agriscan-processing
-code .
-```
-
----
-
 ## 3. Tạo môi trường ảo Python 3.14
 
 Kiểm tra Python:
@@ -113,7 +90,7 @@ Phải hiển thị Python 3.14.x.
 
 1. Nhấn `Ctrl + Shift + P`.
 2. Chọn `Python: Select Interpreter`.
-3. Chọn interpreter trong `agriscan-processing\.venv`.
+3. Chọn interpreter trong `\.venv`.
 
 Không nên dùng trực tiếp Python toàn cục để chạy dự án.
 
@@ -124,7 +101,7 @@ Không nên dùng trực tiếp Python toàn cục để chạy dự án.
 Dự án sử dụng mô hình `src-layout`:
 
 ```text
-agriscan-processing/
+processing/
 │
 ├── .venv/
 │
@@ -213,7 +190,7 @@ agriscan-processing/
 
 ### Tạo thư mục bằng PowerShell
 
-Chạy tại thư mục gốc `agriscan-processing`:
+Chạy tại thư mục gốc `processing`:
 
 ```powershell
 $dirs = @(
