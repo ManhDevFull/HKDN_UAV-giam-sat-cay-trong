@@ -1,0 +1,12 @@
+numpy
+opencv-python
+pandas
+matplotlib
+PyYAML
+typer
+pytest
+ruff
+rasterio
+geopandas
+shapely
+pyproj
