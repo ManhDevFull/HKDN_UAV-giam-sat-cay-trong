@@ -22,8 +22,8 @@ python -m pip install -e '.[raw]'
 ## Chạy với dữ liệu giả
 
 ```bash
-hkdn-make-sample --output data/synthetic
-hkdn-process data/synthetic/mosaic.npy --output output/synthetic-001 --pattern RGGB
+make-synthetic-survey --output data/synthetic
+process-survey data/synthetic/mosaic.npy --output output/synthetic-001 --pattern RGGB
 ```
 
 Kết quả mỗi kênh gồm `.npy` giữ giá trị số và `.png` để xem nhanh; `metadata.json` ghi pattern và kích thước. `data/` và `output/` đã được ignore để tránh đưa dữ liệu vào Git.
@@ -31,7 +31,7 @@ Kết quả mỗi kênh gồm `.npy` giữ giá trị số và `.png` để xem 
 ## Chạy với RAW
 
 ```bash
-hkdn-process /duong-dan/anh.CR2 --output output/survey-001 --pattern RGGB
+process-survey /duong-dan/anh.CR2 --output output/survey-001 --pattern RGGB
 ```
 
 `rawpy` đọc sensor mosaic nhìn thấy và metadata cơ bản. Cần xác nhận CFA pattern theo metadata thực tế của Survey3 trước khi xử lý lô ảnh; hiện `RGGB` chỉ là mặc định của fixture. File gốc không bị sửa. Không commit RAW, ảnh trung gian hay kết quả lớn.
