@@ -9,6 +9,7 @@ from PIL import Image
 from .config import asset_path, load_config, plane_roi, sample_roi
 from .export import save_multiband
 from .images import pair_jpegs, read_jpeg, read_jpeg_metadata
+from .output import stage_output
 from .radiometry import RelativeCorrector, analysis_eligibility, load_settings
 from .raw import decode_raw, split_bayer_channels
 from .reflectance import apply_reflectance, fit_empirical_line, validate_timepoints
@@ -185,7 +186,7 @@ def calibrate_session(session: dict, root: Path, preprocessor: Preprocessor, fil
             'exposure_confirmed_by_operator': True}, target
 
 
-def run_batch(input_path: Path, output_dir: Path, *, config_path: Path | None = None,
+def _run_batch(input_path: Path, output_dir: Path, *, config_path: Path | None = None,
               pattern: str | None = None, settings_path: Path | None = None, mode: str = 'auto') -> dict:
     input_path, output_dir = input_path.resolve(), output_dir.resolve()
     if not input_path.exists():
@@ -368,6 +369,22 @@ def run_batch(input_path: Path, output_dir: Path, *, config_path: Path | None = 
     write_json(output_dir / 'manifest.json', manifest)
     write_json(output_dir / 'summary.json', summary)
     return summary
+
+
+def run_batch(input_path: Path, output_dir: Path, *, config_path: Path | None = None,
+              pattern: str | None = None, settings_path: Path | None = None, mode: str = 'auto',
+              require_validation: bool = False) -> dict:
+    with stage_output(input_path, output_dir) as transaction:
+        summary = _run_batch(input_path, transaction['path'], config_path=config_path,
+                             pattern=pattern, settings_path=settings_path, mode=mode)
+        rejected = summary['failed_count'] > 0 or (require_validation and summary['validation']['status'] != 'passed')
+        publish = not transaction['existed'] or not rejected
+        summary['output_updated'] = publish
+        summary['previous_output_retained'] = not publish
+        if publish:
+            write_json(transaction['path'] / 'summary.json', summary)
+        transaction['publish'] = publish
+        return summary
 
 
 def process_mosaic(mosaic: np.ndarray, output_dir: Path, pattern: str = 'RGGB') -> dict:

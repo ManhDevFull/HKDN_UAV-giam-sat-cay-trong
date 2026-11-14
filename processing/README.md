@@ -11,10 +11,10 @@ cd processing
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -e .
-process-survey ../assets --mode relative --output output/run-001
+process-survey ../assets --mode relative
 ```
 
-Windows PowerShell: tạo venv bằng `python -m venv .venv`, kích hoạt bằng `.venv\Scripts\Activate.ps1`. Mỗi lần chạy dùng tên output mới. Không sửa ảnh gốc. Máy bạn cùng nhóm chỉ cần pull code, nhận `assets` riêng rồi chạy các lệnh trên; không cần tải flat-field về.
+Windows PowerShell: tạo venv bằng `python -m venv .venv`, kích hoạt bằng `.venv\Scripts\Activate.ps1`. Kết quả luôn ở **`processing/output/assets/`** (tính từ gốc repo). Chạy lại cùng lệnh sẽ thay kết quả cũ, tự bỏ ảnh đã mất khỏi đầu vào; nếu lần chạy mới lỗi thì giữ kết quả trước. Có thể chọn thư mục riêng bằng `--output`. Không sửa ảnh gốc. Máy bạn cùng nhóm chỉ cần pull code, nhận `assets` riêng rồi chạy; không cần tải flat-field về.
 
 ## Code làm gì?
 
@@ -26,7 +26,7 @@ Windows PowerShell: tạo venv bằng `python -m venv .venv`, kích hoạt bằn
 
 ## Đầu ra bàn giao nhóm C
 
-Mở `output/run-001/manifest.json`: mỗi mục có `source`, `status`, `preview`, `metadata`; RAW có thêm `raster`, `valid_mask`, `bands`, `units`, `analysis_eligibility`. Đường dẫn tương đối với thư mục output, có thể chuyển nguyên thư mục qua kênh riêng cho nhóm C.
+Mở `output/assets/manifest.json` từ thư mục `processing`: mỗi mục có `source`, `status`, `preview`, `metadata`; RAW có thêm `raster`, `valid_mask`, `bands`, `units`, `analysis_eligibility`. Đường dẫn tương đối với thư mục output, có thể chuyển nguyên thư mục qua kênh riêng cho nhóm C.
 
 - `bands.tif`: float32 H×W×3, thứ tự **Red, Green, NIR**; Green là trung bình G1/G2. Pixel lỗi là NaN, mặt nạ `valid_mask.tif`: 1 hợp lệ / 0 lỗi. TIFF theo pixel cảm biến, **chưa có tọa độ bản đồ**, chưa phải orthomosaic.
 - `R/G1/G2/B.npy`: giữ các mặt phẳng số (B là NIR danh nghĩa với RGN); `preview.png` chỉ để xem. JPG đứng riêng không có TIFF/NPY.

@@ -150,12 +150,62 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(report['status'], 'failed')
         self.assertTrue((self.root / 'output' / 'summary.json').is_file())
 
-    def test_outputs_cannot_overwrite_sources_or_previous_run(self):
+    def test_outputs_cannot_overwrite_sources_and_successful_rerun_replaces_old_run(self):
         with self.assertRaises(ValueError):
             run_batch(self.assets, self.assets / 'output')
+        first = self.run_pipeline()
+        second = self.run_pipeline()
+        self.assertTrue(second['output_updated'])
+        self.assertEqual(first['input_count'], second['input_count'])
+
+    def test_successful_rerun_removes_stale_images(self):
+        orphan = self.assets / 'removed.npy'
+        np.save(orphan, np.full((96, 96), 1000, dtype=np.uint16))
+        first = self.run_pipeline()
+        old = next(frame for frame in first['frames'] if frame['source'] == 'removed.npy')
+        old_output = self.root / 'output' / old['output']
+        self.assertTrue(old_output.is_dir())
+        orphan.unlink()
+        second = self.run_pipeline()
+        self.assertTrue(second['output_updated'])
+        self.assertFalse(old_output.exists())
+        self.assertFalse(list(self.root.glob('.output.tmp-*')))
+
+    def test_failed_rerun_preserves_existing_results(self):
         self.run_pipeline()
-        with self.assertRaises(ValueError):
-            self.run_pipeline()
+        output = self.root / 'output'
+        before = {p.relative_to(output): hashlib.sha256(p.read_bytes()).digest()
+                  for p in output.rglob('*') if p.is_file()}
+        (self.assets / 'broken.RAW').write_bytes(b'corrupt')
+        second = self.run_pipeline()
+        self.assertEqual(second['failed_count'], 1)
+        self.assertFalse(second['output_updated'])
+        self.assertTrue(second['previous_output_retained'])
+        after = {p.relative_to(output): hashlib.sha256(p.read_bytes()).digest()
+                 for p in output.rglob('*') if p.is_file()}
+        self.assertEqual(before, after)
+        self.assertFalse(list(self.root.glob('.output.tmp-*')))
+
+    def test_failed_validation_keeps_previous_output_and_cli_exit_two(self):
+        self.run_pipeline()
+        summary_path = self.root / 'output' / 'summary.json'
+        previous = summary_path.read_bytes()
+        scene = self.assets / 'afternoon' / 'scene.npy'
+        np.save(scene, (np.load(scene) - 64) * 1.3 + 64)
+        completed = subprocess.run(
+            [sys.executable, '-m', 'processing.cli', str(self.assets), '--output', str(self.root / 'output'),
+             '--require-validation'], text=True, capture_output=True)
+        self.assertEqual(completed.returncode, 2, completed.stderr)
+        self.assertIn('previous output kept unchanged', completed.stdout)
+        self.assertEqual(summary_path.read_bytes(), previous)
+
+    def test_first_failed_run_into_empty_folder_keeps_diagnostics(self):
+        (self.root / 'output').mkdir()
+        (self.assets / 'broken.RAW').write_bytes(b'corrupt')
+        result = self.run_pipeline()
+        self.assertTrue(result['output_updated'])
+        self.assertEqual(result['failed_count'], 1)
+        self.assertTrue((self.root / 'output' / 'summary.json').is_file())
 
     def test_overlapping_sessions_and_calibration_rois_are_rejected(self):
         self.config['sessions'][1]['images'] = self.config['sessions'][0]['images']
