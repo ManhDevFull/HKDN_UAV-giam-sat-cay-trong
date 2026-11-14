@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "survey-processing"
-version = "0.2.0"
-description = "Survey3 RAW preprocessing and empirical-line reflectance calibration"
+version = "0.3.0"
+description = "Survey3 RAW/JPEG relative radiometric correction and raster handoff"
 requires-python = ">=3.10"
-dependencies = ["numpy>=1.24", "Pillow>=10"]
+dependencies = ["numpy>=1.24", "Pillow>=10", "tifffile>=2023.7.10"]
 
 [project.optional-dependencies]
 raw = ["rawpy>=0.19"]
@@ -18,3 +18,6 @@ make-synthetic-survey = "processing.synthetic:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+processing = ["profiles/*.json", "profiles/*LICENSE.txt"]

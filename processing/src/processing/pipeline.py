@@ -7,6 +7,9 @@ import numpy as np
 from PIL import Image
 
 from .config import asset_path, load_config, plane_roi, sample_roi
+from .export import save_multiband
+from .images import pair_jpegs, read_jpeg, read_jpeg_metadata
+from .radiometry import RelativeCorrector, analysis_eligibility, load_settings
 from .raw import decode_raw, split_bayer_channels
 from .reflectance import apply_reflectance, fit_empirical_line, validate_timepoints
 from .vignetting import correct_vignetting
@@ -14,6 +17,7 @@ from .vignetting import correct_vignetting
 RAW_EXTENSIONS = {'.raw', '.dng', '.cr2', '.cr3', '.nef', '.arw', '.raf', '.orf', '.rw2'}
 INPUT_EXTENSIONS = RAW_EXTENSIONS | {'.npy'}
 CHANNELS = ('R', 'G1', 'G2', 'B')
+JPEG_EXTENSIONS = {'.jpg', '.jpeg'}
 
 
 def write_json(path: Path, value: dict) -> None:
@@ -84,7 +88,7 @@ class Preprocessor:
                 raise ValueError('Flat field and scene must use the same Bayer pattern')
             planes = {name: correct_vignetting(plane, self.flat_channels[name]) for name, plane in planes.items()}
         if metadata['black_level_source'].startswith('unknown'):
-            warnings.append('Black level is unknown; zero offset assumed (empirical-line intercept is fitted)')
+            warnings.append('Black level is unknown; zero offset assumed')
         if any(metadata['saturated_fraction'].values()):
             warnings.append('Pixels at the encoding/decoder white limit are masked as NaN')
         metadata['vignetting_corrected'] = self.flat_channels is not None
@@ -94,6 +98,7 @@ class Preprocessor:
 
 def save_frame(output_dir: Path, planes: dict[str, np.ndarray], metadata: dict) -> None:
     output_dir.mkdir(parents=True, exist_ok=False)
+    (output_dir / '.gitignore').write_text('*\n', encoding='utf-8')
     for name, plane in planes.items():
         np.save(output_dir / f'{name}.npy', plane.astype(np.float32))
     # Preview values are stretched; quantitative data stay linear in the NPY files.
@@ -111,7 +116,39 @@ def save_frame(output_dir: Path, planes: dict[str, np.ndarray], metadata: dict) 
             'min': float(finite.min()) if finite.size else None,
             'max': float(finite.max()) if finite.size else None,
         }
+    metadata['export'] = save_multiband(output_dir, planes, metadata, metadata.get('filter', 'RGN'))
     write_json(output_dir / 'metadata.json', metadata)
+
+
+def save_jpeg_preview(path: Path, output_dir: Path) -> dict:
+    planes, metadata = read_jpeg(path)
+    output_dir.mkdir(parents=True, exist_ok=False)
+    (output_dir / '.gitignore').write_text('*\n', encoding='utf-8')
+    rgb = np.stack([planes['R'], planes['G1'], planes['B']], axis=-1)
+    Image.fromarray(np.clip(rgb, 0, 255).astype(np.uint8)).save(output_dir / 'preview.png')
+    metadata.update({'status': 'preview_only', 'analysis_eligibility': analysis_eligibility(source_encoding='JPEG'),
+                     'quantitative_input': False,
+                     'reason': 'Project document 02 section 4: JPEG is for preview, quantitative work uses RAW'})
+    write_json(output_dir / 'metadata.json', metadata)
+    return metadata
+
+
+def check_camera_identity(camera: dict, filter_name: str, expected_model: str) -> None:
+    model = camera.get('model')
+    declared_filters = [camera.get('filter')]
+    if isinstance(model, str) and '_' in model:
+        suffix = model.rsplit('_', 1)[1]
+        if suffix in {'RGN', 'OCN', 'RGB', 'NGB', 'NIR', 'RE'}:
+            declared_filters.append(suffix)
+    for declared_filter in declared_filters:
+        if declared_filter is not None and declared_filter != filter_name:
+            raise ValueError(f'Camera filter {declared_filter} conflicts with {filter_name}; never mix RGN and OCN')
+    if model is not None:
+        if not isinstance(model, str) or not model.strip():
+            raise ValueError('Camera model must be a nonempty string when supplied')
+        normalized_model = model.removeprefix('MAPIR ').strip()
+        if not normalized_model.startswith(expected_model):
+            raise ValueError(f'Lens profile {expected_model} does not match camera {model}')
 
 
 def _references(panel: dict, filter_name: str) -> dict[str, float]:
@@ -149,9 +186,8 @@ def calibrate_session(session: dict, root: Path, preprocessor: Preprocessor, fil
 
 
 def run_batch(input_path: Path, output_dir: Path, *, config_path: Path | None = None,
-              pattern: str | None = None) -> dict:
-    input_path = input_path.resolve()
-    output_dir = output_dir.resolve()
+              pattern: str | None = None, settings_path: Path | None = None, mode: str = 'auto') -> dict:
+    input_path, output_dir = input_path.resolve(), output_dir.resolve()
     if not input_path.exists():
         raise ValueError(f'Input does not exist: {input_path}')
     root = input_path if input_path.is_dir() else input_path.parent
@@ -159,22 +195,36 @@ def run_batch(input_path: Path, output_dir: Path, *, config_path: Path | None = 
         raise ValueError('Output must be separate from the input directory; source images stay unchanged')
     if output_dir.exists():
         raise ValueError('Output directory already exists; choose a new --output directory')
-    if config_path is None and input_path.is_dir() and (root / 'calibration.json').is_file():
+    if mode not in ('auto', 'relative', 'panel'):
+        raise ValueError('mode must be auto, relative or panel')
+    if mode == 'relative' and config_path is not None:
+        raise ValueError('Choose relative mode or a panel calibration config, not both')
+    if config_path is None and mode != 'relative' and input_path.is_dir() and (root / 'calibration.json').is_file():
         config_path = root / 'calibration.json'
+    if mode == 'panel' and config_path is None:
+        raise ValueError('Panel mode requires --calibration or INPUT/calibration.json')
+    panel_mode = config_path is not None
+    settings = load_settings(settings_path)
     config = load_config(config_path)
     config_pattern = config.get('pattern')
     if pattern and config_pattern and pattern != config_pattern:
         raise ValueError('--pattern conflicts with calibration config')
+    filter_name = config.get('filter', settings['filter']) if panel_mode else settings['filter']
+    # Only inspect the declared camera identity. Private field notes/GPS are not copied.
+    if input_path.is_dir() and (root / 'metadata.json').is_file():
+        survey = json.loads((root / 'metadata.json').read_text(encoding='utf-8-sig'))
+        if not isinstance(survey, dict) or not isinstance(survey.get('camera', {}), dict):
+            raise ValueError('Survey metadata must contain a camera object')
+        check_camera_identity(survey.get('camera', {}), filter_name, settings['camera_model'])
     preprocessor = Preprocessor(pattern or config_pattern, config.get('black_level'),
                                 asset_path(root, config['flat']) if config.get('flat') else None)
+    corrector = RelativeCorrector(settings) if not panel_mode else None
     candidates = sorted(p.resolve() for p in (root.rglob('*') if input_path.is_dir() else [input_path])
-                        if p.is_file() and p.suffix.lower() in INPUT_EXTENSIONS)
-    sessions = config.get('sessions', [])
-    filter_name = config.get('filter', 'RGN')
-    mapping = {}
-    models = {}
+                        if p.is_file() and p.suffix.lower() in INPUT_EXTENSIONS | JPEG_EXTENSIONS)
+    if any(not p.is_relative_to(root) for p in candidates):
+        raise ValueError('Input image links must stay inside the input directory')
+    sessions, mapping, models, checks = config.get('sessions', []), {}, {}, {}
     excluded = {preprocessor.flat_path} if preprocessor.flat_path else set()
-    checks = {}
     for session in sessions:
         name = session['id']
         model, target = calibrate_session(session, root, preprocessor, filter_name)
@@ -196,8 +246,7 @@ def run_batch(input_path: Path, output_dir: Path, *, config_path: Path | None = 
         for check in session.get('checks', []):
             if not isinstance(check, dict) or set(check) != {'image', 'object_id', 'roi'}:
                 raise ValueError('Each check must contain image, object_id and roi')
-            image = asset_path(root, check['image'])
-            object_id = check['object_id']
+            image, object_id = asset_path(root, check['image']), check['object_id']
             if not isinstance(object_id, str) or not object_id or object_id in seen_objects:
                 raise ValueError(f'{name}: each check needs a unique, nonempty object_id')
             seen_objects.add(object_id)
@@ -206,65 +255,117 @@ def run_batch(input_path: Path, output_dir: Path, *, config_path: Path | None = 
             checks.setdefault(image, []).append(check)
     if excluded & set(mapping):
         raise ValueError('Scene patterns must exclude calibration targets and flat fields')
-    files = [p for p in candidates if p not in excluded]
+    raw_files = [p for p in candidates if p.suffix.lower() in INPUT_EXTENSIONS]
+    jpeg_files = [p for p in candidates if p.suffix.lower() in JPEG_EXTENSIONS]
+    pairs, unpaired_jpegs, pair_reasons = pair_jpegs(
+        [p for p in raw_files if p.suffix.lower() != '.npy'], jpeg_files, settings['max_jpeg_delta_seconds'])
+    files = [p for p in raw_files if p not in excluded] + unpaired_jpegs
     if not files:
-        raise ValueError('No RAW/NPY scene images found (JPEGs are previews, not linear calibration inputs)')
+        raise ValueError('No RAW/NPY or JPEG inputs found')
     if set(mapping) - set(files):
         raise ValueError('Calibration session contains scene images outside this run input')
     output_dir.mkdir(parents=True)
-    summary = {'schema_version': 1, 'input_count': len(files), 'processed_count': 0, 'failed_count': 0,
-               'calibrated_count': 0, 'filter': filter_name, 'calibration': models, 'frames': []}
-    # Expected checks remain present if decoding or ROI sampling fails, so a
-    # completely missing validation object can never disappear from the report.
+    # Every run carries its own ignore rule, including arbitrary --output paths.
+    (output_dir / '.gitignore').write_text('*\n', encoding='utf-8')
+    summary = {'schema_version': 2, 'mode': 'panel' if panel_mode else 'relative',
+               'source_file_count': len(candidates), 'input_count': len(files),
+               'raw_count': len([p for p in raw_files if p not in excluded]), 'jpeg_count': len(jpeg_files),
+               'paired_jpeg_count': sum(p not in excluded for p in pairs),
+               'processed_count': 0, 'failed_count': 0, 'relative_corrected_count': 0,
+               'preview_only_count': 0, 'exposure_normalized_count': 0, 'factory_flat_corrected_count': 0,
+               'low_signal_count': 0,
+               'calibrated_count': 0, 'filter': filter_name, 'calibration': models, 'frames': [],
+               'software_settings': settings, 'analysis_eligibility': analysis_eligibility(),
+               'absolute_reflectance_accuracy': {'status': 'not_measured', 'below_5_percent_verified': False}}
     measurements = {(mapping[image], check['object_id']):
                     {'session': mapping[image], 'object_id': check['object_id'], 'means': {}}
                     for image, image_checks in checks.items() for check in image_checks}
+    manifest = {'schema_version': 1, 'stage': 'week2_radiometry', 'coordinate_system': 'sensor_pixels',
+                'georeferenced': False, 'filter': filter_name, 'analysis_eligibility': analysis_eligibility(),
+                'software_settings': settings, 'items': []}
     for image in files:
         relative = image.relative_to(root)
         destination = output_dir / relative.parent / (relative.name.replace('.', '_') + '_processed')
         entry = {'source': relative.as_posix(), 'output': destination.relative_to(output_dir).as_posix()}
         try:
-            planes, metadata = preprocessor.read(image)
-            name = mapping.get(image)
-            metadata.update({'source': relative.as_posix(), 'session': name, 'filter': filter_name,
-                             'band_mapping': {'R': 'nominal_red', 'G1': 'nominal_green', 'G2': 'nominal_green',
-                                              'B': 'nominal_NIR' if filter_name == 'RGN' else 'blue'}})
-            if filter_name == 'RGN':
-                metadata['warnings'].append('RGN spectral overlap is not unmixed; CFA planes are nominal bands')
-            pending_records = []
-            if name is not None:
-                model = models[name]
-                if metadata['pattern'] != model['target_pattern']:
-                    raise ValueError('Target and scene Bayer patterns must match')
-                planes = {key: apply_reflectance(plane, model['coefficients'][key]) for key, plane in planes.items()}
-                metadata['status'] = 'calibrated'
-                metadata['units'] = 'reflectance_fraction'
-                metadata['calibration'] = model
-                metadata['out_of_range_fraction'] = {
-                    key: float(np.mean((plane < 0) | (plane > 1))) for key, plane in planes.items()}
-                for check in checks.get(image, []):
-                    pending_records.append({'session': name, 'object_id': check['object_id'],
-                                            'means': {key: sample_roi(plane, check['roi']) for key, plane in planes.items()}})
+            if image.suffix.lower() in JPEG_EXTENSIONS:
+                metadata = save_jpeg_preview(image, destination)
+                metadata['source'] = relative.as_posix()
+                write_json(destination / 'metadata.json', metadata)
+                entry.update({'status': 'preview_only', 'warnings': metadata['warnings']})
+                summary['preview_only_count'] += 1
             else:
-                metadata['status'] = 'uncalibrated'
-                metadata['units'] = 'digital_number'
-                metadata['warnings'].append('Reflectance not calibrated: no session/target assigned')
-            save_frame(destination, planes, metadata)
-            for record in pending_records:
-                measurements[(record['session'], record['object_id'])] = record
-            entry.update({'status': metadata['status'], 'warnings': metadata['warnings']})
+                planes, metadata = preprocessor.read(image)
+                capture = {}
+                if image in pairs:
+                    capture = read_jpeg_metadata(pairs[image])
+                    if (capture['width'], capture['height']) != (metadata.get('width'), metadata.get('height')):
+                        raise ValueError('Paired RAW and JPEG geometry do not match; exposure pairing rejected')
+                    check_camera_identity(capture, filter_name, settings['camera_model'])
+                metadata['capture'] = {key: capture.get(key) for key in
+                                       ('exposure_seconds', 'iso', 'model', 'datetime_original', 'orientation')}
+                metadata['source_jpeg'] = pairs[image].relative_to(root).as_posix() if image in pairs else None
+                metadata['jpeg_association'] = pair_reasons.get(image, 'not_applicable')
+                name = mapping.get(image)
+                metadata.update({'source': relative.as_posix(), 'session': name, 'filter': filter_name,
+                                 'band_mapping': {'R': 'nominal_red', 'G1': 'nominal_green', 'G2': 'nominal_green',
+                                                  'B': 'nominal_NIR' if filter_name == 'RGN' else 'blue'}})
+                if filter_name == 'RGN':
+                    metadata['warnings'].append('RGN spectral overlap is not unmixed; CFA planes are nominal bands')
+                pending_records = []
+                if name is not None:
+                    model = models[name]
+                    if metadata['pattern'] != model['target_pattern']:
+                        raise ValueError('Target and scene Bayer patterns must match')
+                    planes = {key: apply_reflectance(plane, model['coefficients'][key]) for key, plane in planes.items()}
+                    metadata.update({'status': 'calibrated', 'units': 'reflectance_fraction', 'calibration': model,
+                                     'analysis_eligibility': analysis_eligibility(certified=True)})
+                    metadata['out_of_range_fraction'] = {
+                        key: float(np.mean((plane < 0) | (plane > 1))) for key, plane in planes.items()}
+                    for check in checks.get(image, []):
+                        pending_records.append({'session': name, 'object_id': check['object_id'],
+                                                'means': {key: sample_roi(plane, check['roi']) for key, plane in planes.items()}})
+                elif corrector is not None:
+                    planes, metadata = corrector.apply(planes, metadata, capture)
+                else:
+                    metadata.update({'status': 'uncalibrated', 'units': 'digital_number',
+                                     'analysis_eligibility': analysis_eligibility()})
+                    metadata['warnings'].append('Reflectance not calibrated: no session/target assigned')
+                save_frame(destination, planes, metadata)
+                for record in pending_records:
+                    measurements[(record['session'], record['object_id'])] = record
+                entry.update({'status': metadata['status'], 'warnings': metadata['warnings']})
+                summary['calibrated_count'] += int(name is not None)
+                summary['relative_corrected_count'] += int(metadata['status'] == 'relative_corrected')
+                summary['exposure_normalized_count'] += int(metadata.get('correction', {}).get('exposure_normalized', False))
+                summary['factory_flat_corrected_count'] += int(metadata.get('correction', {}).get('factory_flat_applied', False))
+                summary['low_signal_count'] += int('low_signal' in metadata.get('quality', {}).get('flags', []))
+            item = {'source': relative.as_posix(), 'status': metadata['status'], 'units': metadata['units'],
+                    'preview': (destination / 'preview.png').relative_to(output_dir).as_posix(),
+                    'metadata': (destination / 'metadata.json').relative_to(output_dir).as_posix(),
+                    'analysis_eligibility': metadata['analysis_eligibility']}
+            if metadata.get('quality'):
+                item['quality'] = metadata['quality']
+            if metadata.get('export'):
+                item.update({key: (destination / metadata['export'][key]).relative_to(output_dir).as_posix()
+                             for key in ('raster', 'valid_mask')})
+                item.update({'bands': metadata['export']['bands'], 'georeferenced': False, 'nodata': 'NaN'})
+            manifest['items'].append(item)
             summary['processed_count'] += 1
-            summary['calibrated_count'] += int(name is not None)
         except (ValueError, RuntimeError, OSError) as exc:
             entry.update({'status': 'failed', 'error': str(exc)})
             summary['failed_count'] += 1
         summary['frames'].append(entry)
         print(f"[{len(summary['frames'])}/{len(files)}] {relative}: {entry['status']}", flush=True)
     summary['status'] = ('failed' if summary['failed_count'] else
-                         'calibrated' if summary['calibrated_count'] == len(files) else
+                         'preview_only' if summary['raw_count'] == 0 else
+                         'relative_corrected' if not panel_mode else
+                         'calibrated' if summary['calibrated_count'] == summary['raw_count'] else
                          'partially_calibrated' if summary['calibrated_count'] else 'uncalibrated')
     summary['validation'] = validate_timepoints(list(measurements.values()), [session['id'] for session in sessions])
-    summary['validation']['scope'] = 'Temporal repeatability of independent same-object ROIs; not absolute accuracy or fit residuals'
+    summary['validation']['scope'] = 'Independent same-object repeatability; not factory profile fit error or absolute accuracy'
+    summary['handoff_manifest'] = 'manifest.json'
+    write_json(output_dir / 'manifest.json', manifest)
     write_json(output_dir / 'summary.json', summary)
     return summary
 

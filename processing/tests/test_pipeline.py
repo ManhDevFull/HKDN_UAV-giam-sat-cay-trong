@@ -11,6 +11,7 @@ import tempfile
 import unittest
 
 import numpy as np
+from PIL import Image
 
 from processing.config import load_config, sample_roi
 from processing.pipeline import Preprocessor, run_batch
@@ -71,15 +72,62 @@ class PipelineTests(unittest.TestCase):
         source = self.root / 'uncalibrated'
         source.mkdir()
         np.save(source / 'scene.npy', np.full((16, 16), 1000, dtype=np.uint16))
-        (source / 'preview.JPG').write_bytes(b'not a calibration input')
+        Image.fromarray(np.full((16, 16, 3), 180, dtype=np.uint8)).save(source / 'preview.JPG')
         with redirect_stdout(io.StringIO()):
             report = run_batch(source, self.root / 'output')
-        self.assertEqual(report['input_count'], 1)
-        self.assertEqual(report['status'], 'uncalibrated')
+        self.assertEqual(report['input_count'], 2)
+        self.assertEqual(report['status'], 'relative_corrected')
+        self.assertEqual(report['relative_corrected_count'], 1)
+        self.assertEqual(report['preview_only_count'], 1)
         self.assertEqual(report['validation']['status'], 'incomplete')
-        metadata = json.loads(next((self.root / 'output').rglob('metadata.json')).read_text())
+        manifest = json.loads((self.root / 'output' / 'manifest.json').read_text())
+        raw_item = next(item for item in manifest['items'] if item['status'] == 'relative_corrected')
+        jpeg_item = next(item for item in manifest['items'] if item['status'] == 'preview_only')
+        self.assertNotIn('raster', jpeg_item)
+        self.assertFalse(jpeg_item['analysis_eligibility']['cross_survey_comparison'])
+        metadata = json.loads((self.root / 'output' / raw_item['metadata']).read_text())
         self.assertFalse(metadata['vignetting_corrected'])
-        self.assertEqual(metadata['units'], 'digital_number')
+        self.assertEqual(metadata['units'], 'relative_DN')
+
+    def test_input_filter_conflict_is_rejected_before_output(self):
+        for camera in ({'model': 'Survey3W_OCN', 'filter': 'OCN'},
+                       {'model': 'Survey3W_RGN', 'filter': 'OCN'},
+                       {'model': 'Survey3W_OCN', 'filter': 'RGN'}):
+            (self.assets / 'metadata.json').write_text(json.dumps({'camera': camera}))
+            with self.subTest(camera=camera), self.assertRaisesRegex(ValueError, 'never mix RGN and OCN'):
+                self.run_pipeline()
+        self.assertFalse((self.root / 'output').exists())
+
+    def test_jpeg_only_run_does_not_claim_raw_correction(self):
+        source = self.root / 'jpeg-only'
+        source.mkdir()
+        Image.fromarray(np.full((16, 16, 3), 100, dtype=np.uint8)).save(source / 'view.JPG')
+        with redirect_stdout(io.StringIO()):
+            report = run_batch(source, self.root / 'output')
+        self.assertEqual(report['status'], 'preview_only')
+        self.assertEqual(report['relative_corrected_count'], 0)
+        manifest = json.loads((self.root / 'output' / 'manifest.json').read_text())
+        eligibility = manifest['items'][0]['analysis_eligibility']
+        self.assertIs(eligibility['quantitative_input'], False)
+        self.assertEqual(eligibility['source_encoding'], 'JPEG')
+        self.assertNotIn('raster', manifest['items'][0])
+
+    def test_declared_other_camera_cannot_use_survey3w_factory_profile(self):
+        (self.assets / 'metadata.json').write_text(json.dumps({'camera': {'model': 'OtherCamera', 'filter': 'RGN'}}))
+        with self.assertRaisesRegex(ValueError, 'does not match camera'):
+            self.run_pipeline()
+        self.assertFalse((self.root / 'output').exists())
+
+    def test_custom_output_always_contains_ignore_rule_and_portable_manifest(self):
+        self.run_pipeline('custom-result')
+        output = self.root / 'custom-result'
+        self.assertEqual((output / '.gitignore').read_text(), '*\n')
+        manifest = json.loads((output / 'manifest.json').read_text())
+        self.assertFalse(manifest['georeferenced'])
+        for item in manifest['items']:
+            for key in ('raster', 'valid_mask', 'preview', 'metadata'):
+                self.assertFalse(Path(item[key]).is_absolute())
+                self.assertTrue((output / item[key]).is_file())
 
     def test_failed_image_cannot_remove_all_checks_for_an_expected_object(self):
         # A second validation object is configured in every session, but every

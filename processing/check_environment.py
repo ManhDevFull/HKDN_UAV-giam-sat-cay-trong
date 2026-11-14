@@ -5,7 +5,9 @@ import sys
 import numpy
 import PIL
 import processing
+import tifffile
 
 print(f"Python: {sys.version.split()[0]}")
 print(f"NumPy: {numpy.__version__}; Pillow: {PIL.__version__}")
+print(f"TIFF: {tifffile.__version__}")
 print(f"Processing: {processing.__version__}; Survey3 packed RAW decoder ready")

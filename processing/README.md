@@ -1,56 +1,39 @@
 # Nhóm B — Tuần 2
 
-Đọc RAW Survey3 → tách Bayer → khử vignetting nếu có flat → hiệu chỉnh phản xạ theo tấm chuẩn → kiểm chứng 3 thời điểm. Chỉ xử lý ảnh, chưa ghép bản đồ hay làm API.
+Nhận `assets/` từ nhóm A: RAW + JPG, có thể kèm `metadata.json`. Bản hiện tại chạy **hiệu chỉnh tương đối bằng phần mềm**, không cần tấm chuẩn.
 
 ## Cài và chạy
 
-Cần Python 3.10+. Nhận thư mục `assets/` qua kênh riêng, đặt ở gốc repo (không có trong Git).
+Python 3.10+, bắt đầu ở gốc repo:
 
 ```bash
 cd processing
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -e .
-process-survey ../assets --output output/week2-001
+process-survey ../assets --mode relative --output output/run-001
 ```
 
-Windows: dùng `.venv\Scripts\activate` thay lệnh `source`. Survey3 RAW 4000×3000, 18 MB đọc trực tiếp, không cần rawpy. Định dạng camera khác: `python -m pip install -e '.[raw]'`.
+Windows PowerShell: tạo venv bằng `python -m venv .venv`, kích hoạt bằng `.venv\Scripts\Activate.ps1`. Mỗi lần chạy dùng tên output mới. Không sửa ảnh gốc. Máy bạn cùng nhóm chỉ cần pull code, nhận `assets` riêng rồi chạy các lệnh trên; không cần tải flat-field về.
 
-Lệnh quét RAW trong các thư mục con; JPG chỉ là ảnh xem trước, không dùng để tính phản xạ. Mỗi lần chạy chọn thư mục output **mới**; ảnh nguồn không bị ghi đè. `assets/`, `data/`, `output/` đã được ignore.
+## Code làm gì?
 
-## Khi có tấm chuẩn
+- **RAW:** giải mã 12-bit, tách Bayer, khử tối góc bằng profile ống kính Survey3W của MAPIR. Dùng thời gian phơi sáng trong JPG ghép cặp để đưa RAW về mốc 0,008 giây ở ISO 100; thiếu EXIF thì ghi rõ bước bị bỏ qua. Không đổi histogram từng ảnh để ép chúng giống nhau.
+- **JPG:** ghép cặp theo tên/thời gian/số thứ tự khi không mơ hồ, dùng làm EXIF và preview. JPG đứng riêng chỉ xuất preview, không xuất raster định lượng (đúng mục 4 tài liệu 02).
+- **Tham số có trong Git:** `src/processing/profiles/default.json` và `survey3w.json`. Muốn đổi tham số: sửa bản default hoặc dùng `--settings đường/dẫn/settings.json`. Profile chỉ dùng cho Survey3W RAW 4000×3000, giữ nguyên hướng; không trộn RGN/OCN.
 
-```bash
-cp calibration.example.json ../assets/calibration.json
-```
+**Giới hạn bắt buộc:** thiếu chuẩn phản xạ/ánh sáng nên kết quả là `relative_signal`, chưa phải phần trăm phản xạ. Theo mục 3 tài liệu 02, **chưa được dùng so sánh giữa các lần khảo sát hoặc nghiệm thu sai số phản xạ <5%**. Crosstalk R/G–NIR chưa được khử; RGN không có Red Edge. Metadata và manifest đều ghi các điều kiện này.
 
-Sửa file này; lần chạy tiếp theo tự đọc cấu hình:
+## Đầu ra bàn giao nhóm C
 
-- Đường dẫn tính từ `assets/`. Mỗi `session` là một thời điểm; sửa `images` thành danh sách tên RAW hoặc glob của buổi đó, `target` là RAW chụp tấm chuẩn. Không đưa target/flat vào `images`.
-- `panels`: ít nhất 2 ô chuẩn khác nhau, nên dùng đủ các ô có chứng nhận. Thay `null` bằng phản xạ **theo từng dải từ chứng nhận**, dạng 0–1 (50% = 0.5); không tự dùng số ví dụ.
-- `roi = [x, y, rộng, cao]` theo pixel RAW, góc trái trên; tất cả số chẵn, tối thiểu 8×8. Chọn phần trong ô, tránh viền, bóng và vùng cháy sáng. Có thể chạy riêng ảnh target ra output khác để lấy `preview.png`; tọa độ RAW = **2 lần** tọa độ preview, không dùng tọa độ JPG.
-- Target và ảnh trong cùng session phải cùng ISO/phơi sáng, ánh sáng ổn định; xác nhận xong mới đổi `exposure_confirmed` thành `true`. Ánh sáng/phơi sáng đổi thì tạo session và chụp chuẩn lại.
-- `flat`: RAW/NPY chụp bề mặt sáng đồng đều, không bão hòa, cùng camera/ống kính; thiếu thì để `null` và bước vignetting được bỏ qua có ghi chú. `black_level` chỉ nhập khi đã đo, không biết để `null`.
-- `checks`: chọn **cùng vật thể/vùng vật lý** ở 3 thời điểm, giữ cùng `object_id`; mỗi ROI phải ở ảnh cảnh riêng, không dùng ảnh target để tự kiểm chứng.
+Mở `output/run-001/manifest.json`: mỗi mục có `source`, `status`, `preview`, `metadata`; RAW có thêm `raster`, `valid_mask`, `bands`, `units`, `analysis_eligibility`. Đường dẫn tương đối với thư mục output, có thể chuyển nguyên thư mục qua kênh riêng cho nhóm C.
 
-```bash
-process-survey ../assets --output output/week2-002 --require-validation
-```
+- `bands.tif`: float32 H×W×3, thứ tự **Red, Green, NIR**; Green là trung bình G1/G2. Pixel lỗi là NaN, mặt nạ `valid_mask.tif`: 1 hợp lệ / 0 lỗi. TIFF theo pixel cảm biến, **chưa có tọa độ bản đồ**, chưa phải orthomosaic.
+- `R/G1/G2/B.npy`: giữ các mặt phẳng số (B là NIR danh nghĩa với RGN); `preview.png` chỉ để xem. JPG đứng riêng không có TIFF/NPY.
+- `summary.json`: số ảnh xử lý, ghép cặp, hiệu chỉnh, lỗi; `quality.flags` đánh dấu ảnh quá tối, `analysis_eligibility` cho biết dữ liệu được phép dùng đến đâu. Nhóm C không coi `relative_corrected` là phản xạ đã kiểm chứng.
 
-Mỗi kênh đạt khi `100 × (max − min) / mean < 5%` qua 3 thời điểm; đây là độ lặp lại, chưa chứng minh độ chính xác tuyệt đối. Mã thoát: `0` chạy xong; `1` lỗi đầu vào/xử lý; `2` có `--require-validation` nhưng chưa đạt hoặc thiếu kiểm chứng.
+`assets/`, dữ liệu tham chiếu tải về, cache, demo và mọi output đều được ignore. Mỗi thư mục output tự có `.gitignore`, kể cả đặt tên khác. **Chỉ commit code, tham số và README.**
 
-## Kết quả và kiểm tra
+Kiểm tra code: `python -m unittest discover -s tests`. Luồng dùng tấm chuẩn vẫn giữ trong `calibration.example.json` nếu sau này có dữ liệu đo thật; chế độ `--mode panel --calibration ...`.
 
-Trong output: mỗi ảnh có `R/G1/G2/B.npy` (float32), `preview.png`, `metadata.json`; tổng hợp ở `summary.json`. `uncalibrated` là DN; `calibrated` là phản xạ 0–1 theo mô hình tuyến tính. Không chặn giá trị ngoài 0–1 để dễ phát hiện lỗi; pixel bão hòa ghi NaN. G1/G2 là hai vị trí xanh Bayer; với RGN, B là kênh NIR danh nghĩa. Chưa tách chồng phổ R/G với NIR, nên chưa coi đây là hiệu chuẩn phổ đầy đủ của hãng.
-
-Bộ `assets` hiện tại: **22 RAW, 24 JPG; chưa có ảnh chuẩn/flat và số phản xạ chứng nhận**, nên chỉ chạy tiền xử lý, chưa thể nghiệm thu <5%.
-
-Demo hiệu chỉnh có đáp án giả lập (không dùng số này cho ảnh thật):
-
-```bash
-make-synthetic-survey --week2 --output data/demo-week2
-process-survey data/demo-week2 --output output/demo-week2 --require-validation
-python -m unittest discover -s tests
-```
-
-Tham khảo: [giải mã RAW của MAPIR](https://github.com/mapircamera/camera-scripts/blob/main/Convert_Survey3_RAW_To_Tiff/Convert_Survey3_RAW_to_Tiff.py), [hiệu chỉnh phản xạ](https://www.mapir.camera/pages/what-is-reflectance-calibration), [chồng phổ RGN](https://www.mapir.camera/en-gb/pages/how-do-you-capture-3-channels-bands-of-separate-multispectral-reflectance-data-in-a-traditional-rgb-color-camera).
+Nguồn: [flat-field MAPIR đã khóa phiên bản](https://github.com/mapircamera/camera-scripts/tree/f127afad0e31370cbb28d1783435cedafd2fd915/Vignette_Correction_Survey3). Sai số nén profile so với flat hãng: P95 ≈ 0,98%, lớn nhất ≈ 3,06%; **không phải sai số phản xạ thực địa**. Chỉ khi muốn tái tạo profile mới chạy `python tools/build_lens_profile.py`; TIFF nguồn tải vào `data/reference/mapir/` và không được commit. Nguồn và giấy phép nằm cùng profile.

@@ -30,6 +30,7 @@ def main() -> None:
         print(f"Wrote synthetic calibration demo to {args.output}")
         return
     args.output.mkdir(parents=True, exist_ok=False)
+    (args.output / '.gitignore').write_text('*\n', encoding='utf-8')
     mosaic, flat = make_synthetic_mosaic(args.size)
     np.save(args.output / "mosaic.npy", mosaic)
     np.save(args.output / "flat.npy", flat)
@@ -39,6 +40,7 @@ def main() -> None:
 def make_calibration_demo(output: Path) -> None:
     """Small reproducible fixture; these reflectances are NOT real MAPIR values."""
     output.mkdir(parents=True, exist_ok=False)
+    (output / '.gitignore').write_text('*\n', encoding='utf-8')
     rng = np.random.default_rng(42)
     shade = radial_flat((96, 96), strength=0.3)
     black = 64.0

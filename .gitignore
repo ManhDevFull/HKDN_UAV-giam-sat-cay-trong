@@ -25,6 +25,13 @@ dist-ssr
 .env
 # Private, large survey inputs (RAW, JPG and calibration metadata).
 assets/
+# Generated processing outputs and caches; parameters remain in source control.
+/processing/output/
+/processing/outputs/
+/processing/results/
+/processing/data/
+/processing/.cache/
+/processing/.pytest_cache/
 uploads/*
 !uploads/.gitkeep
 !uploads/avatars/.gitkeep
