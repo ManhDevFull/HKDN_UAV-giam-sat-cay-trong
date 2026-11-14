@@ -1,0 +1,17 @@
+data/
+output/
+*.CR2
+*.CR3
+*.DNG
+*.RAW
+*.NEF
+*.ARW
+*.RAF
+__pycache__/
+*.py[cod]
+.venv/
+*.ORF
+
+__pycache__/
+*.py[cod]
+.venv/
