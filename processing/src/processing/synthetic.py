@@ -1,6 +1,7 @@
 """Create deterministic Bayer mosaic fixtures; no camera data required."""
 
 import argparse
+import json
 from pathlib import Path
 
 import numpy as np
@@ -22,12 +23,48 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=Path("data/synthetic"))
     parser.add_argument("--size", type=int, default=512)
+    parser.add_argument("--week2", action="store_true", help="Create a three-session calibration demo with measured ground truth")
     args = parser.parse_args()
-    args.output.mkdir(parents=True, exist_ok=True)
+    if args.week2:
+        make_calibration_demo(args.output)
+        print(f"Wrote synthetic calibration demo to {args.output}")
+        return
+    args.output.mkdir(parents=True, exist_ok=False)
     mosaic, flat = make_synthetic_mosaic(args.size)
     np.save(args.output / "mosaic.npy", mosaic)
     np.save(args.output / "flat.npy", flat)
     print(f"Wrote synthetic 12-bit Bayer mosaic to {args.output}")
+
+
+def make_calibration_demo(output: Path) -> None:
+    """Small reproducible fixture; these reflectances are NOT real MAPIR values."""
+    output.mkdir(parents=True, exist_ok=False)
+    rng = np.random.default_rng(42)
+    shade = radial_flat((96, 96), strength=0.3)
+    black = 64.0
+    np.save(output / "flat.npy", 1000 * shade + black)
+    sessions = []
+    for name, scale in (("morning", 1800), ("noon", 3200), ("afternoon", 2400)):
+        folder = output / name
+        folder.mkdir()
+        target = np.full((96, 96), 0.1)
+        target[:, 48:] = 0.7
+        scene = np.empty((96, 96))
+        for (row, col), value in zip(((0, 0), (0, 1), (1, 0), (1, 1)), (0.35, 0.4, 0.4, 0.55)):
+            scene[row::2, col::2] = value
+        for filename, reflectance in (("target", target), ("scene", scene)):
+            mosaic = reflectance * scale * shade + black + rng.normal(0, 0.2, shade.shape)
+            np.save(folder / f"{filename}.npy", mosaic.astype(np.float32))
+        sessions.append({"id": name, "images": [f"{name}/scene.npy"],
+                         "target": f"{name}/target.npy", "exposure_confirmed": True,
+                         "panels": [
+                             {"roi": [8, 8, 32, 32], "reflectance": {"R": 0.1, "G": 0.1, "NIR": 0.1}},
+                             {"roi": [56, 8, 32, 32], "reflectance": {"R": 0.7, "G": 0.7, "NIR": 0.7}}],
+                         "checks": [{"image": f"{name}/scene.npy", "object_id": "demo-object",
+                                     "roi": [24, 24, 48, 48]}]})
+    config = {"schema_version": 1, "filter": "RGN", "pattern": "RGGB", "black_level": black,
+              "flat": "flat.npy", "sessions": sessions}
+    (output / "calibration.json").write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":

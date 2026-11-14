@@ -6,19 +6,19 @@ import numpy as np
 def correct_vignetting(image: np.ndarray, flat: np.ndarray, *, epsilon: float = 1e-6) -> np.ndarray:
     """Correct an image using a same-channel flat field, preserving image scale.
 
-    The flat is normalized by its median. This simple implementation is intended
-    for controlled synthetic and calibration data; real work needs dark-level,
-    exposure, saturation, and calibration-frame checks.
+    Both inputs must already have their black levels removed. A flat must be a
+    uniformly illuminated, unsaturated calibration frame, never a scene image.
     """
-    if image.shape != flat.shape:
-        raise ValueError("image and flat must have identical shapes")
+    if image.ndim != 2 or image.shape != flat.shape or not image.size:
+        raise ValueError("image and flat must be nonempty 2D arrays with identical shapes")
     image_f = image.astype(np.float32)
     flat_f = flat.astype(np.float32)
-    positive = flat_f[flat_f > epsilon]
-    if positive.size == 0:
-        raise ValueError("flat field has no positive values")
-    normalized = flat_f / np.median(positive)
-    return image_f / np.maximum(normalized, epsilon)
+    if not np.isfinite(epsilon) or epsilon <= 0:
+        raise ValueError("epsilon must be finite and positive")
+    if not np.all(np.isfinite(flat_f)) or np.any(flat_f <= epsilon):
+        raise ValueError("flat field must contain only finite, positive values")
+    normalized = flat_f / np.median(flat_f)
+    return image_f / normalized
 
 
 def radial_flat(shape: tuple[int, int], strength: float = 0.35) -> np.ndarray:

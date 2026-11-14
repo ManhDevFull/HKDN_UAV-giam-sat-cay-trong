@@ -23,6 +23,8 @@ dist-ssr
 *.sln
 *.sw?
 .env
+# Private, large survey inputs (RAW, JPG and calibration metadata).
+assets/
 uploads/*
 !uploads/.gitkeep
 !uploads/avatars/.gitkeep

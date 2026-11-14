@@ -1,3 +1,3 @@
-"""Early image-processing tools for the HKDN project."""
+"""Survey3 RAW preprocessing and reflectance calibration."""
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

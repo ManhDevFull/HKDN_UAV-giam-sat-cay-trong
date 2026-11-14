@@ -1,19 +1,11 @@
+"""Run after pip install -e .; Survey3 RAW does not require rawpy."""
+
+import sys
+
 import numpy
-import cv2
-import pandas
-import matplotlib
-import rasterio
-import geopandas
-import shapely
-import pyproj
-import yaml
+import PIL
+import processing
 
-print("NumPy:", numpy.__version__)
-print("OpenCV:", cv2.__version__)
-print("Pandas:", pandas.__version__)
-print("Rasterio:", rasterio.__version__)
-print("GeoPandas:", geopandas.__version__)
-print("Shapely:", shapely.__version__)
-print("PyProj:", pyproj.__version__)
-
-print("AgriScan environment is ready!")
+print(f"Python: {sys.version.split()[0]}")
+print(f"NumPy: {numpy.__version__}; Pillow: {PIL.__version__}")
+print(f"Processing: {processing.__version__}; Survey3 packed RAW decoder ready")

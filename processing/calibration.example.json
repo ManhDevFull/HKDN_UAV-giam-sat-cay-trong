@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "filter": "RGN",
+  "pattern": "RGGB",
+  "black_level": null,
+  "flat": null,
+  "sessions": [
+    {
+      "id": "morning",
+      "images": ["raw/morning/*.RAW"],
+      "target": "calibration/morning.RAW",
+      "exposure_confirmed": false,
+      "panels": [
+        {"roi": [0, 0, 0, 0], "reflectance": {"R": null, "G": null, "NIR": null}},
+        {"roi": [0, 0, 0, 0], "reflectance": {"R": null, "G": null, "NIR": null}}
+      ],
+      "checks": [{"image": "raw/morning/scene.RAW", "object_id": "plant-01", "roi": [0, 0, 0, 0]}]
+    },
+    {
+      "id": "noon",
+      "images": ["raw/noon/*.RAW"],
+      "target": "calibration/noon.RAW",
+      "exposure_confirmed": false,
+      "panels": [
+        {"roi": [0, 0, 0, 0], "reflectance": {"R": null, "G": null, "NIR": null}},
+        {"roi": [0, 0, 0, 0], "reflectance": {"R": null, "G": null, "NIR": null}}
+      ],
+      "checks": [{"image": "raw/noon/scene.RAW", "object_id": "plant-01", "roi": [0, 0, 0, 0]}]
+    },
+    {
+      "id": "afternoon",
+      "images": ["raw/afternoon/*.RAW"],
+      "target": "calibration/afternoon.RAW",
+      "exposure_confirmed": false,
+      "panels": [
+        {"roi": [0, 0, 0, 0], "reflectance": {"R": null, "G": null, "NIR": null}},
+        {"roi": [0, 0, 0, 0], "reflectance": {"R": null, "G": null, "NIR": null}}
+      ],
+      "checks": [{"image": "raw/afternoon/scene.RAW", "object_id": "plant-01", "roi": [0, 0, 0, 0]}]
+    }
+  ]
+}

@@ -1,47 +1,56 @@
-# Processing — Nhóm B
+# Nhóm B — Tuần 2
 
-Phạm vi tuần 1: đọc dữ liệu RAW Survey3, giữ nguyên dữ liệu nguồn, tách các mặt phẳng Bayer và chuẩn bị bước hiệu chỉnh vignetting. Hiện chưa có ảnh Survey3, nên pipeline có thể chạy bằng mosaic tổng hợp. Đây là nền ban đầu; chưa phải hiệu chỉnh phản xạ bằng tấm chuẩn, demosaic hay pipeline khoa học đã nghiệm thu.
+Đọc RAW Survey3 → tách Bayer → khử vignetting nếu có flat → hiệu chỉnh phản xạ theo tấm chuẩn → kiểm chứng 3 thời điểm. Chỉ xử lý ảnh, chưa ghép bản đồ hay làm API.
 
-## Cài đặt
+## Cài và chạy
 
-Python 3.10 trở lên:
+Cần Python 3.10+. Nhận thư mục `assets/` qua kênh riêng, đặt ở gốc repo (không có trong Git).
 
 ```bash
 cd processing
-python -m venv .venv
-source .venv/bin/activate       # Windows: .venv\Scripts\activate
+python3 -m venv .venv
+source .venv/bin/activate
 python -m pip install -e .
+process-survey ../assets --output output/week2-001
 ```
 
-Đọc file camera cần cài thêm decoder:
+Windows: dùng `.venv\Scripts\activate` thay lệnh `source`. Survey3 RAW 4000×3000, 18 MB đọc trực tiếp, không cần rawpy. Định dạng camera khác: `python -m pip install -e '.[raw]'`.
+
+Lệnh quét RAW trong các thư mục con; JPG chỉ là ảnh xem trước, không dùng để tính phản xạ. Mỗi lần chạy chọn thư mục output **mới**; ảnh nguồn không bị ghi đè. `assets/`, `data/`, `output/` đã được ignore.
+
+## Khi có tấm chuẩn
 
 ```bash
-python -m pip install -e '.[raw]'
+cp calibration.example.json ../assets/calibration.json
 ```
 
-## Chạy với dữ liệu giả
+Sửa file này; lần chạy tiếp theo tự đọc cấu hình:
+
+- Đường dẫn tính từ `assets/`. Mỗi `session` là một thời điểm; sửa `images` thành danh sách tên RAW hoặc glob của buổi đó, `target` là RAW chụp tấm chuẩn. Không đưa target/flat vào `images`.
+- `panels`: ít nhất 2 ô chuẩn khác nhau, nên dùng đủ các ô có chứng nhận. Thay `null` bằng phản xạ **theo từng dải từ chứng nhận**, dạng 0–1 (50% = 0.5); không tự dùng số ví dụ.
+- `roi = [x, y, rộng, cao]` theo pixel RAW, góc trái trên; tất cả số chẵn, tối thiểu 8×8. Chọn phần trong ô, tránh viền, bóng và vùng cháy sáng. Có thể chạy riêng ảnh target ra output khác để lấy `preview.png`; tọa độ RAW = **2 lần** tọa độ preview, không dùng tọa độ JPG.
+- Target và ảnh trong cùng session phải cùng ISO/phơi sáng, ánh sáng ổn định; xác nhận xong mới đổi `exposure_confirmed` thành `true`. Ánh sáng/phơi sáng đổi thì tạo session và chụp chuẩn lại.
+- `flat`: RAW/NPY chụp bề mặt sáng đồng đều, không bão hòa, cùng camera/ống kính; thiếu thì để `null` và bước vignetting được bỏ qua có ghi chú. `black_level` chỉ nhập khi đã đo, không biết để `null`.
+- `checks`: chọn **cùng vật thể/vùng vật lý** ở 3 thời điểm, giữ cùng `object_id`; mỗi ROI phải ở ảnh cảnh riêng, không dùng ảnh target để tự kiểm chứng.
 
 ```bash
-make-synthetic-survey --output data/synthetic
-process-survey data/synthetic/mosaic.npy --output output/synthetic-001 --pattern RGGB
+process-survey ../assets --output output/week2-002 --require-validation
 ```
 
-Kết quả mỗi kênh gồm `.npy` giữ giá trị số và `.png` để xem nhanh; `metadata.json` ghi pattern và kích thước. `data/` và `output/` đã được ignore để tránh đưa dữ liệu vào Git.
+Mỗi kênh đạt khi `100 × (max − min) / mean < 5%` qua 3 thời điểm; đây là độ lặp lại, chưa chứng minh độ chính xác tuyệt đối. Mã thoát: `0` chạy xong; `1` lỗi đầu vào/xử lý; `2` có `--require-validation` nhưng chưa đạt hoặc thiếu kiểm chứng.
 
-## Chạy với RAW
+## Kết quả và kiểm tra
+
+Trong output: mỗi ảnh có `R/G1/G2/B.npy` (float32), `preview.png`, `metadata.json`; tổng hợp ở `summary.json`. `uncalibrated` là DN; `calibrated` là phản xạ 0–1 theo mô hình tuyến tính. Không chặn giá trị ngoài 0–1 để dễ phát hiện lỗi; pixel bão hòa ghi NaN. G1/G2 là hai vị trí xanh Bayer; với RGN, B là kênh NIR danh nghĩa. Chưa tách chồng phổ R/G với NIR, nên chưa coi đây là hiệu chuẩn phổ đầy đủ của hãng.
+
+Bộ `assets` hiện tại: **22 RAW, 24 JPG; chưa có ảnh chuẩn/flat và số phản xạ chứng nhận**, nên chỉ chạy tiền xử lý, chưa thể nghiệm thu <5%.
+
+Demo hiệu chỉnh có đáp án giả lập (không dùng số này cho ảnh thật):
 
 ```bash
-process-survey /duong-dan/anh.CR2 --output output/survey-001 --pattern RGGB
+make-synthetic-survey --week2 --output data/demo-week2
+process-survey data/demo-week2 --output output/demo-week2 --require-validation
+python -m unittest discover -s tests
 ```
 
-`rawpy` đọc sensor mosaic nhìn thấy và metadata cơ bản. Cần xác nhận CFA pattern theo metadata thực tế của Survey3 trước khi xử lý lô ảnh; hiện `RGGB` chỉ là mặc định của fixture. File gốc không bị sửa. Không commit RAW, ảnh trung gian hay kết quả lớn.
-
-## Quy ước đầu vào/đầu ra tạm thời A → B
-
-- Đầu vào: một file RAW gốc bất biến, cùng metadata khảo sát (tên/ID, ngày, camera, thông số chụp và tấm hiệu chỉnh nếu có). Nhóm A cần thống nhất cấu trúc thư mục và `metadata.json` của khảo sát trước khi áp dụng cho dữ liệu thật.
-- Đầu ra bước tuần 1: các mặt phẳng Bayer riêng `R`, `G1`, `G2`, `B` dạng `.npy` và PNG xem nhanh, kèm `metadata.json`.
-- Việc lưu trữ dữ liệu khảo sát ngoài Git; README chỉ ghi đường dẫn lưu trữ theo quy ước chung.
-
-## Giới hạn hiện tại
-
-Mô-đun vignetting nhận flat field cùng kích thước/kênh và chuẩn hóa theo median, nhưng pipeline mẫu hiện truyền flat toàn số 1 để xác nhận luồng chạy. Tấm hiệu chỉnh thật cần được chụp đúng quy trình và ghép đúng mặt phẳng CFA. Trước khi báo cáo tiêu chí sai số <5%, cần có dữ liệu chuẩn, định nghĩa phép đo và kiểm chứng độc lập. Chưa có orthomosaic hay chỉ số thực vật trong tuần 1.
+Tham khảo: [giải mã RAW của MAPIR](https://github.com/mapircamera/camera-scripts/blob/main/Convert_Survey3_RAW_To_Tiff/Convert_Survey3_RAW_to_Tiff.py), [hiệu chỉnh phản xạ](https://www.mapir.camera/pages/what-is-reflectance-calibration), [chồng phổ RGN](https://www.mapir.camera/en-gb/pages/how-do-you-capture-3-channels-bands-of-separate-multispectral-reflectance-data-in-a-traditional-rgb-color-camera).

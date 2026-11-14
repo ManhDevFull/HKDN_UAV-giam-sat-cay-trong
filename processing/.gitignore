@@ -1,4 +1,5 @@
 data/
+assets/
 output/
 *.CR2
 *.CR3
@@ -11,7 +12,4 @@ __pycache__/
 *.py[cod]
 .venv/
 *.ORF
-
-__pycache__/
-*.py[cod]
-.venv/
+*.egg-info/
