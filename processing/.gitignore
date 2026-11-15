@@ -1,17 +1,66 @@
+# Python cache & packaging
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Testing & linting
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Survey, intermediate & output data (Large files - DO NOT COMMIT)
 data/
 output/
+processed/
+odm-output/
+!data/input/.gitkeep
+!data/calibration/.gitkeep
+!data/intermediate/.gitkeep
+!data/output/.gitkeep
+
+# Camera RAW, images & binary arrays
+*.RAW
+*.raw
+*.JPG
+*.jpg
+*.JPEG
+*.jpeg
+*.TIF
+*.tif
+*.TIFF
+*.tiff
 *.CR2
 *.CR3
 *.DNG
-*.RAW
 *.NEF
 *.ARW
 *.RAF
-__pycache__/
-*.py[cod]
-.venv/
 *.ORF
+*.npy
+*.npz
 
-__pycache__/
-*.py[cod]
-.venv/
+# Logs
+logs/
+*.log

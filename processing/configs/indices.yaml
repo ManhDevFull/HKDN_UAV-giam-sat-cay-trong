@@ -1,0 +1,10 @@
+indices:
+  ndvi:
+    enabled: true
+
+  gndvi:
+    enabled: false
+
+  savi:
+    enabled: false
+    soil_factor: 0.5

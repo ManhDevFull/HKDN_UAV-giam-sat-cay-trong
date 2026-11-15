@@ -1,5 +1,71 @@
-# Logs
-logs
+# ==========================================
+# 1. Dữ liệu khảo sát, ảnh RAW, JPG, Raster lớn (Không đưa lên Git)
+# ==========================================
+assets/
+AgriScan-Data/
+AgriScan-Storage/
+processed/
+data/
+output/
+odm-output/
+
+*.RAW
+*.raw
+*.JPG
+*.jpg
+*.JPEG
+*.jpeg
+*.TIF
+*.tif
+*.TIFF
+*.tiff
+*.CR2
+*.CR3
+*.DNG
+*.NEF
+*.ARW
+*.RAF
+*.ORF
+*.npy
+*.npz
+
+# ==========================================
+# 2. Môi trường ảo & Cache Python (Nhóm A & B)
+# ==========================================
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# ==========================================
+# 3. Node.js / Frontend & Java / Backend (Nhóm C)
+# ==========================================
+node_modules/
+dist-ssr/
+target/
+*.jar
+*.war
+*.class
+
+# ==========================================
+# 4. Biến môi trường, Bảo mật & Logs
+# ==========================================
+.env
+.env.*
+!.env.example
+*.local
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -7,24 +73,24 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
+# ==========================================
+# 5. Uploads & Thư mục tạm
+# ==========================================
+uploads/*
+!uploads/.gitkeep
+!uploads/avatars/.gitkeep
+!uploads/tasks/.gitkeep
 
-# Editor directories and files
+# ==========================================
+# 6. IDE & Hệ điều hành
+# ==========================================
 .vscode/*
 !.vscode/extensions.json
-.idea
+.idea/
 .DS_Store
+Thumbs.db
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
-.env
-uploads/*
-!uploads/.gitkeep
-!uploads/avatars/.gitkeep
-!uploads/tasks/.gitkeep
-*.log
