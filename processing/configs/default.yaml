@@ -1,0 +1,14 @@
+project:
+  name: AgriScan
+  version: 1.0.0
+
+paths:
+  input: ../assets
+  calibration: data/calibration
+  intermediate: data/intermediate
+  output: data/output
+
+processing:
+  save_intermediate: true
+  overwrite_output: true
+  continue_on_error: false

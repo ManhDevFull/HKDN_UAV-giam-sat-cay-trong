@@ -1,0 +1,29 @@
+camera:
+  manufacturer: MAPIR
+  model: Survey3W
+  filter: RGN
+  sensor_width: 4000
+  sensor_height: 3000
+  bit_depth: 12
+  cfa_pattern: RGGB
+  raw_format: mapir_12bit_packed
+
+bands:
+  red:
+    enabled: true
+    wavelength_nm: 660
+    bayer_position: R
+
+  green:
+    enabled: true
+    wavelength_nm: 550
+    bayer_position: G
+
+  nir:
+    enabled: true
+    wavelength_nm: 850
+    bayer_position: B
+
+metadata:
+  require_camera_model: true
+  require_filter: true

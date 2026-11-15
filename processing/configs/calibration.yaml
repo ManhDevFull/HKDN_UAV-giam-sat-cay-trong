@@ -1,0 +1,12 @@
+calibration:
+  enabled: true
+
+  reflectance:
+    method: null
+    target_type: MAPIR T4P-R25
+
+  vignetting:
+    enabled: false
+
+  quality_check:
+    enabled: true
