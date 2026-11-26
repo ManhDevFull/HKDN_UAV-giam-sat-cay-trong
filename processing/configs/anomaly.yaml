@@ -1,0 +1,14 @@
+anomaly:
+  methods:
+    absolute: true
+    spatial: true
+    temporal: false
+
+  thresholds:
+    ndvi_min: null
+    spatial_z_score: null
+
+  severity:
+    low: 1
+    medium: 2
+    high: 3

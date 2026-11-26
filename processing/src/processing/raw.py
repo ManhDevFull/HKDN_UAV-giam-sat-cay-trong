@@ -1,5 +1,6 @@
 """RAW decoding adapters. RAW mosaics are kept separate from rendered RGB."""
 
+import importlib
 from pathlib import Path
 
 import numpy as np
@@ -7,8 +8,13 @@ import numpy as np
 
 def decode_raw(path: Path) -> tuple[np.ndarray, dict[str, object]]:
     """Return the sensor mosaic and basic metadata from a camera RAW file."""
+    if path.suffix.lower() == ".raw" and path.exists() and path.stat().st_size == 4000 * 3000 * 3 // 2:
+        from agriscan.calibration.decoder import decode_mapir_raw12
+
+        return decode_mapir_raw12(path)
+
     try:
-        import rawpy
+        rawpy = importlib.import_module("rawpy")
     except ImportError as exc:
         raise RuntimeError("RAW decoding requires the optional dependency: pip install -e '.[raw]'") from exc
 

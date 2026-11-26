@@ -1,0 +1,1 @@
+"""Mosaicking and georeferencing modules."""
