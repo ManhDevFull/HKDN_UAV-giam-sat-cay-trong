@@ -35,6 +35,11 @@ data/
 output/
 processed/
 odm-output/
+outputs/
+results/
+artifacts/
+.cache/
+*.png
 !data/input/.gitkeep
 !data/calibration/.gitkeep
 !data/intermediate/.gitkeep

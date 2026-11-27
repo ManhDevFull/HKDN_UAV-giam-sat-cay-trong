@@ -8,6 +8,16 @@ processed/
 data/
 output/
 odm-output/
+outputs/
+results/
+artifacts/
+*.failure.json
+.*.lock
+# Local project briefings; only README handover docs are maintained here.
+/02-*.md
+/05-*.md
+/05-*.txt
+/[Bb]ao-cao-tuan*.md
 
 *.RAW
 *.raw
