@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-VALID_ACQUISITION_METHODS = {"handheld", "pole", "fixed"}
+VALID_ACQUISITION_METHODS = {"handheld", "pole", "fixed", "drone"}
 UNVERIFIED_FILTER_PLACEHOLDERS = {"", "VERIFY_ACTUAL_FILTER", "UNKNOWN", "TBD"}
 
 

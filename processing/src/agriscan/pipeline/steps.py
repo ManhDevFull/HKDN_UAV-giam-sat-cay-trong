@@ -27,7 +27,7 @@ def load_config(config_path: str | Path) -> dict[str, Any]:
         config = yaml.safe_load(file)
 
     if not isinstance(config, dict):
-        raise ValueError(f"Nội dung cấu hình không hợp lệ trong: {path}")
+        raise TypeError(f"Nội dung cấu hình không hợp lệ trong: {path}")
 
     return config
 
