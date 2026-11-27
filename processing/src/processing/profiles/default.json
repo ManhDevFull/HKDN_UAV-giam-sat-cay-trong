@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "profile_id": "survey3w-rgn-relative-v1",
+  "camera_model": "Survey3W",
+  "filter": "RGN",
+  "lens_profile": "survey3w.json",
+  "reference_exposure_seconds": 0.008,
+  "reference_iso": 100,
+  "raw_black_level": 0.0,
+  "normalize_exposure": true,
+  "min_signal_fraction": 0.01,
+  "max_jpeg_delta_seconds": 3.0
+}

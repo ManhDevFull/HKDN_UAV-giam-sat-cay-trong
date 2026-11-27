@@ -1,0 +1,40 @@
+schema_version: 1
+camera:
+  model: Survey3W
+  filter: RGN
+radiometry:
+  mode: relative
+  allow_experimental: false
+mosaicking:
+  image: opendronemap/odm:3.5.6
+  max_concurrency: 4
+  memory_gb: 12
+  timeout_seconds: 7200
+  min_images: 3
+  min_used_ratio: 0.9
+  max_retries: 1
+  orthophoto_resolution: 5
+  feature_quality: high
+  pc_quality: low
+  common_scale: 16384
+indices:
+  red_band: 1
+  nir_band: 3
+  vegetation_threshold: 0.2
+  brightness_min: 0.03
+  reflectance_scale: 1.0
+grid:
+  cell_size_m: 1.0
+  max_cells: 100000
+anomaly:
+  absolute_threshold: 0.35
+  spatial_z_threshold: -1.5
+  min_valid_pixels: 10
+  min_vegetation_fraction: 0.1
+  min_coverage_fraction: 0.2
+  min_spatial_units: 3
+  merge_adjacent: true
+  ranking:
+    severity_weight: 0.7
+    area_weight: 0.2
+    agreement_weight: 0.1

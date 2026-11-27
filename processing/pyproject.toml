@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "survey-processing"
-version = "0.1.0"
-description = "Survey3 RAW preprocessing experiments for HKDN"
+version = "0.4.0"
+description = "AgriScan RAW to orthomosaic, NDVI and anomaly screening pipeline"
 requires-python = ">=3.10"
-dependencies = ["numpy>=1.24", "Pillow>=10"]
+dependencies = ["numpy>=1.24", "Pillow>=10", "tifffile>=2023.7.10", "PyYAML>=6", "rasterio>=1.4", "shapely>=2", "pyproj>=3.7"]
 
 [project.optional-dependencies]
 raw = ["rawpy>=0.19"]
@@ -20,6 +20,10 @@ make-synthetic-survey = "processing.synthetic:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+processing = ["profiles/*.json", "profiles/*LICENSE.txt"]
+agriscan = ["configs/*.yaml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
