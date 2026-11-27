@@ -7,6 +7,7 @@ camera:
   bit_depth: 12
   cfa_pattern: RGGB
   raw_format: mapir_12bit_packed
+  keep_half_resolution: true
 
 bands:
   red:

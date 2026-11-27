@@ -3,7 +3,7 @@ project:
   version: 1.0.0
 
 paths:
-  input: ../assets
+  input: ../assets/survey_2026-11-02
   calibration: data/calibration
   intermediate: data/intermediate
   output: data/output
